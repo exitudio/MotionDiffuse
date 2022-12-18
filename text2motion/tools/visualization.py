@@ -1,6 +1,7 @@
+import sys
+sys.path.append('./')
 import os
 import torch
-import numpy as np
 import argparse
 from os.path import join as pjoin
 
@@ -17,12 +18,10 @@ from utils.utils import *
 from utils.motion_process import recover_from_ric
 
 
-def plot_t2m(data, result_path, npy_path, caption):
+def plot_t2m(data, result_path, caption):
     joint = recover_from_ric(torch.from_numpy(data).float(), opt.joints_num).numpy()
-    joint = motion_temporal_filter(joint, sigma=1)
+    # joint = motion_temporal_filter(joint, sigma=1)
     plot_3d_motion(result_path, paramUtil.t2m_kinematic_chain, joint, title=caption, fps=20)
-    if npy_path != "":
-        np.save(npy_path, joint)
 
 
 def build_models(opt):
@@ -42,13 +41,13 @@ if __name__ == '__main__':
     parser.add_argument('--text', type=str, default="", help='Text description for motion generation')
     parser.add_argument('--motion_length', type=int, default=60, help='Number of frames for motion generation')
     parser.add_argument('--result_path', type=str, default="test_sample.gif", help='Path to save generation result')
-    parser.add_argument('--npy_path', type=str, default="", help='Path to save 3D keypoints sequence')
     parser.add_argument('--gpu_id', type=int, default=-1, help="which gpu to use")
     args = parser.parse_args()
     
-    device = torch.device('cuda:%d' % args.gpu_id if args.gpu_id != -1 else 'cpu')
+    # device = torch.device('cuda:%d' % args.gpu_id if args.gpu_id != -1 else 'cpu')
+    device = torch.device('cuda')
     opt = get_opt(args.opt_path, device)
-    opt.do_denoise = True
+    opt.do_denoise = True # a person runs sadly , 120 frames
 
     assert opt.dataset_name == "t2m"
     assert args.motion_length <= 196
@@ -80,4 +79,4 @@ if __name__ == '__main__':
             motion = pred_motions[0].cpu().numpy()
             motion = motion * std + mean
             title = args.text + " #%d" % motion.shape[0]
-            plot_t2m(motion, args.result_path, args.npy_path, title)
+            plot_t2m(motion, 'generated_data/'+title+'.gif', title)
