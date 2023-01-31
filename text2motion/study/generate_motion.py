@@ -206,10 +206,12 @@ def remove_freeze_frames(joint_dataset):
         return joint_dataset
     return joint_dataset[s[0]:s[-1]+2] # +2 b/c 1. step from F=>T and 2. [a:b+1]
 
-for i, text in tqdm(enumerate(all_text)):
-    for j in range(10):
-        data = torch.from_numpy(get_motion(text, motion_length=196)).float()
-        joint_dataset = recover_from_ric(data, joints_num=22).numpy()
+if __name__ == "__main__":
+
+    import glob
+    for path in tqdm(sorted(glob.glob('/home/epinyoan/git/HumanML3D/HumanML3D/new_joints/*'))):
+        
+        joint_dataset = np.load(path)
         joint_dataset = remove_freeze_frames(joint_dataset)
         if joint_dataset.shape[0] < 60:
             continue
@@ -228,10 +230,40 @@ for i, text in tqdm(enumerate(all_text)):
         tgt_offsets = tgt_skel.get_offsets_joints(torch.from_numpy(joint_bone_offset_with_head[0]))
         joint_forward = tgt_skel.forward_kinematics(smpl_coco_quat, root_pos=torch.from_numpy(joint_dataset[:,0]))
 
-        file_name = 'output/'+str(i)+'_'+str(j)+'_'+text
-        np.save(file_name+'.npy', joint_forward[:, coco_id])  
-        animate3d(joint_forward[:, coco_id].numpy(), coco_bone, save_path='output_html/'+str(i)+'_'+str(j)+'_'+text+'.html')
+        file_name = path.split('/')[-1]
+        np.save('HumanML3D/'+file_name, joint_forward[:, coco_id])  
+        # animate3d(joint_forward[:, coco_id].numpy(), coco_bone, save_path='HumanML3D_html/'+file_name.split('.')[0]+'.html')
 
-    # smpl_smplcoco_bone = t2m_bone + (np.array(smpl_cocohead_bone_vis)+22).tolist()
-    # joint_original_smplcoco = np.concatenate((joint_dataset[:,:22], joint_forward.cpu().numpy()), axis=1)
-    # animate3d(joint_original_smplcoco, smpl_smplcoco_bone, first_total_standard=63, save_path='output/'+str(i)+'_'+text+'.html')
+
+
+
+    # for i, text in tqdm(enumerate(all_text)):
+    #     for j in range(10):
+    #         data = torch.from_numpy(get_motion(text, motion_length=196)).float()
+    #         joint_dataset = recover_from_ric(data, joints_num=22).numpy()
+    #         joint_dataset = remove_freeze_frames(joint_dataset)
+    #         if joint_dataset.shape[0] < 60:
+    #             continue
+
+    #         head_quat = np.zeros((joint_dataset.shape[0],5,3))
+    #         joint_with_head = np.concatenate((joint_dataset, head_quat), axis=1)
+
+    #         # 1. get body quatanion
+    #         tgt_skel = SkeletonWithHead(smpl_coco_angle_offset, smpl_cocohead_chain, 'cpu')
+    #         quat_params = tgt_skel.inverse_kinematics_np(joint_with_head, face_joint_idx=[2, 1, 17, 16], head_chain=smpl_cocohead_chain[5:])
+
+    #         # 2.1 IK
+    #         smpl_coco_quat = torch.from_numpy(quat_params).float()
+
+    #         # 2.2 FK
+    #         tgt_offsets = tgt_skel.get_offsets_joints(torch.from_numpy(joint_bone_offset_with_head[0]))
+    #         joint_forward = tgt_skel.forward_kinematics(smpl_coco_quat, root_pos=torch.from_numpy(joint_dataset[:,0]))
+
+    #         file_name = 'output/'+str(i)+'_'+str(j)+'_'+text
+    #         np.save(file_name+'.npy', joint_forward[:, coco_id])  
+    #         animate3d(joint_forward[:, coco_id].numpy(), coco_bone, save_path='output_html/'+str(i)+'_'+str(j)+'_'+text+'.html')
+
+    #     # smpl_smplcoco_bone = t2m_bone + (np.array(smpl_cocohead_bone_vis)+22).tolist()
+    #     # joint_original_smplcoco = np.concatenate((joint_dataset[:,:22], joint_forward.cpu().numpy()), axis=1)
+    #     # animate3d(joint_original_smplcoco, smpl_smplcoco_bone, first_total_standard=63, save_path='output/'+str(i)+'_'+text+'.html')
+

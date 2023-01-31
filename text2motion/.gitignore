@@ -1,7 +1,11 @@
 checkpoints
 *__pycache__
 generated_data
-*-checkpoint.ipynb
+.ipynb_checkpoints
 
-output
-output_html
+study/output
+study/output_html
+study/HumanML3D
+data/HumanML3D
+HumanML3D_html
+data/KIT-ML

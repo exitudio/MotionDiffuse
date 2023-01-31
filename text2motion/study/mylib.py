@@ -23,6 +23,7 @@ from smplpytorch.pytorch.smpl_layer import SMPL_Layer
 from display_utils import display_model
 import copy
 from utils.quaternion import *
+from mmcv.parallel import MMDistributedDataParallel, MMDataParallel
 
 
 def build_models(opt):
@@ -63,6 +64,8 @@ mean = np.load('../checkpoints/t2m/t2m_motiondiffuse/meta/mean.npy')
 std = np.load('../checkpoints/t2m/t2m_motiondiffuse/meta/std.npy')
 
 encoder = build_models(opt).to(device)
+# encoder = MMDataParallel(
+#             encoder, device_ids=[0,1,2,3])
 trainer = DDPMTrainer(opt, encoder)
 trainer.load('../checkpoints/t2m/t2m_motiondiffuse/model/latest.tar')
 
@@ -97,17 +100,23 @@ smpl_coco_bone = t2m_bone + (np.array(coco_bone)+22).tolist()
 smpl_human36_bone = t2m_bone + (np.array(human36_skeleton)+22).tolist()
 smpl_smpl_bone = t2m_bone + (np.array(t2m_bone)+22).tolist()
 
-def animate3d(skeleton, BONE_LINK=t2m_bone, first_total_standard=-1, save_path=None):
-    # [animation] https://community.plotly.com/t/3d-scatter-animation/46368/6
+def axis_standard(skeleton):
     skeleton = skeleton.copy()
 #     skeleton = -skeleton
     # skeleton[:, :, 0] *= -1
+    # xyz => zxy
     skeleton[:, :, [1, 2]] = skeleton[:, :, [2, 1]]
-    # skeleton[:, :, [0, 1]] = skeleton[:, :, [1, 0]]
+    skeleton[:, :, [0, 1]] = skeleton[:, :, [1, 0]]
+    return skeleton
+
+def animate3d(skeleton, BONE_LINK=t2m_bone, first_total_standard=-1, save_path=None, axis_standard=axis_standard):
+    # [animation] https://community.plotly.com/t/3d-scatter-animation/46368/6
+    
     SHIFT_SCALE = 0
     START_FRAME = 0
     NUM_FRAMES = skeleton.shape[0]
     skeleton = skeleton[START_FRAME:NUM_FRAMES+START_FRAME]
+    skeleton = axis_standard(skeleton)
 
     if BONE_LINK is not None:
         # ground truth
@@ -386,6 +395,7 @@ def display_animate2D(data, w, h):
         ax.scatter(x,y)
         for i, bone in enumerate(coco_bone):
             ax.plot([x[bone[0]], x[bone[1]]], [y[bone[0]], y[bone[1]]], 'r')
+    plt.close()
     fig, ax = plt.subplots()
     animate(0)
     return FuncAnimation(fig, animate, frames=data.shape[0], interval=20)

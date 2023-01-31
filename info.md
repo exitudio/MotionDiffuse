@@ -24,3 +24,28 @@ cd /home/epinyoan/git/MotionDiffuse/text2motion
 conda activate motiondiffuse
 python -u ./tools/visualization.py --opt_path checkpoints/t2m/t2m_motiondiffuse/opt.txt --text "a man backflip" --motion_length 2     --result_path "test_sample.gif"
 ```
+
+generate_motion
+```
+cd /home/epinyoan/git/MotionDiffuse/text2motion/study
+conda activate motiondiffuse
+python generate_motion.py
+```
+
+# Run Training
+```
+conda activate motiondiffuse
+cd text2motion
+PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
+    python -u tools/train.py \
+    --name kit_baseline_dp_2gpu_8layers_1000 \
+    --batch_size 128 \
+    --times 50 \
+    --num_epochs 50 \
+    --dataset_name kit \
+    --num_layers 8 \
+    --diffusion_steps 1000 \
+    --data_parallel \
+    --gpu_id 0 1 2 3
+```
+
