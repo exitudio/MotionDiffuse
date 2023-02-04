@@ -33,7 +33,7 @@ def save_logfile(log_loss, save_path):
             f.write(w_line + '\n')
 
 
-def print_current_loss(start_time, niter_state, losses, epoch=None, inner_iter=None):
+def print_current_loss(start_time, niter_state, losses, epoch=None, inner_iter=None, unify_log=None):
 
     def as_minutes(s):
         m = math.floor(s / 60)
@@ -56,6 +56,7 @@ def print_current_loss(start_time, niter_state, losses, epoch=None, inner_iter=N
     for k, v in losses.items():
         message += ' %s: %.4f ' % (k, v)
     print(message)
+    unify_log.log(dict(losses), step=niter_state)
 
 
 def compose_gif_img_list(img_list, fp_out, duration):

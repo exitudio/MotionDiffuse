@@ -8,4 +8,6 @@ study/output_html
 study/HumanML3D
 data/HumanML3D
 HumanML3D_html
-data/KIT-ML
+data
+
+wandb

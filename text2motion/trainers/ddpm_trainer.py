@@ -11,6 +11,7 @@ from utils.utils import print_current_loss
 from os.path import join as pjoin
 import codecs as cs
 import torch.distributed as dist
+from tqdm import tqdm
 
 
 from mmcv.runner import get_dist_info
@@ -24,6 +25,7 @@ from models.gaussian_diffusion import (
 )
 
 from datasets import build_dataloader
+from utils.logs import UnifyLog
 
 
 class DDPMTrainer(object):
@@ -48,6 +50,8 @@ class DDPMTrainer(object):
         if args.is_train:
             self.mse_criterion = torch.nn.MSELoss(reduction='none')
         self.to(self.device)
+
+        self.unify_log = UnifyLog(self.opt, self.encoder)
 
     @staticmethod
     def zero_grad(opt_list):
@@ -195,8 +199,9 @@ class DDPMTrainer(object):
             num_gpus=len(self.opt.gpu_id))
 
         logs = OrderedDict()
-        for epoch in range(cur_epoch, self.opt.num_epochs):
+        for epoch in tqdm(range(cur_epoch, self.opt.num_epochs)):
             self.train_mode()
+            print('num batch:', len(train_loader))
             for i, batch_data in enumerate(train_loader):
                 self.forward(batch_data)
                 log_dict = self.update()
@@ -211,7 +216,7 @@ class DDPMTrainer(object):
                     for tag, value in logs.items():
                         mean_loss[tag] = value / self.opt.log_every
                     logs = OrderedDict()
-                    print_current_loss(start_time, it, mean_loss, epoch, inner_iter=i)
+                    print_current_loss(start_time, it, mean_loss, epoch, inner_iter=i, unify_log=self.unify_log)
 
                 if it % self.opt.save_latest == 0 and rank == 0:
                     self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it)
