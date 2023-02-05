@@ -12,6 +12,10 @@ from utils import paramUtil
 from utils.utils import *
 from trainers import DDPMTrainer
 
+from mmcv.runner import get_dist_info, init_dist
+from mmcv.parallel import MMDistributedDataParallel, MMDataParallel
+import glob
+
 from os.path import join as pjoin
 import sys
 
@@ -150,7 +154,7 @@ def get_metric_statistics(values):
     return mean, conf_interval
 
 
-def evaluation(log_file):
+def evaluation(log_file, unify_log):
     with open(log_file, 'w') as f:
         all_metrics = OrderedDict({'Matching Score': OrderedDict({}),
                                    'R_precision': OrderedDict({}),
@@ -230,12 +234,25 @@ def evaluation(log_file):
                 if isinstance(mean, np.float64) or isinstance(mean, np.float32):
                     print(f'---> [{model_name}] Mean: {mean:.4f} CInterval: {conf_interval:.4f}')
                     print(f'---> [{model_name}] Mean: {mean:.4f} CInterval: {conf_interval:.4f}', file=f, flush=True)
+                    if model_name == 'text2motion':
+                        unify_log.log({metric_name: mean}, step=0)
                 elif isinstance(mean, np.ndarray):
                     line = f'---> [{model_name}]'
                     for i in range(len(mean)):
                         line += '(top %d) Mean: %.4f CInt: %.4f;' % (i+1, mean[i], conf_interval[i])
                     print(line)
                     print(line, file=f, flush=True)
+
+def overwrite_opt(opt):
+    opt.raw_name = opt.raw_name+'_eval'
+    global mm_num_samples, mm_num_repeats, mm_num_times, diversity_times
+    if opt.debug:
+        mm_num_samples = 2
+        mm_num_repeats = 2
+        mm_num_times = 1
+        diversity_times = 1
+    return opt
+
 
 
 if __name__ == '__main__':
@@ -247,6 +264,14 @@ if __name__ == '__main__':
     replication_times = 1
     batch_size = 32
     opt_path = sys.argv[1]
+    # support data prefix
+    _, dataset_name, name, debug = opt_path.split('/')
+    if debug=='t':
+        opt_path = f"checkpoints/{dataset_name}/TEMP/opt.txt"
+    else:
+        opt_path = f"checkpoints/{dataset_name}/*_{name}/opt.txt"
+        opt_path = sorted(list(glob.glob(opt_path)))[-1]
+
     dataset_opt_path = opt_path
 
     try:
@@ -261,7 +286,24 @@ if __name__ == '__main__':
     eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
 
     opt = get_opt(opt_path, device)
+    log_file = f'./{opt.checkpoints_dir}/{opt.dataset_name}/{opt.name}/t2m_evaluation.log'
+    opt = overwrite_opt(opt)
     encoder = build_models(opt, opt.dim_pose)
+    # rank, world_size = get_dist_info()
+    # if world_size > 1:
+    #     encoder = MMDistributedDataParallel(
+    #         encoder.cuda(),
+    #         device_ids=[torch.cuda.current_device()],
+    #         broadcast_buffers=False,
+    #         find_unused_parameters=True)
+    # elif opt.data_parallel:
+    #     print('opt.gpu_id:', opt.gpu_id)
+    #     encoder = MMDataParallel(
+    #         encoder.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
+    # else:
+    #     encoder = encoder.cuda()
+
+
     trainer = DDPMTrainer(opt, encoder)
     eval_motion_loaders = {
         'text2motion': lambda: get_motion_loader(
@@ -274,5 +316,4 @@ if __name__ == '__main__':
         )
     }
 
-    log_file = './t2m_evaluation.log'
-    evaluation(log_file)
+    evaluation(log_file, trainer.unify_log)

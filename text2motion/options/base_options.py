@@ -3,6 +3,8 @@ import os
 import torch
 from mmcv.runner import init_dist, get_dist_info
 import torch.distributed as dist
+import shutil
+import datetime
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -61,12 +63,25 @@ class BaseOptions():
         self.parser.add_argument("--project", default="project_name")
         self.parser.add_argument('--debug', type=str2bool, nargs='?', default=True)
 
+    def init_save_folder(self):
+        self.opt.raw_name = self.opt.name
+        if self.opt.debug:
+            self.opt.name = 'TEMP'
+        else:
+            date = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            self.opt.name = f'{date}_{self.opt.name}'
+            save_folder = f"./{self.opt.checkpoints_dir}/{self.opt.dataset_name}/{self.opt.name}/"
+            os.makedirs(save_folder, exist_ok=False)
+            for f in ['datasets', 'experiments', 'models', 'options', 'tools', 'trainers', 'utils']:
+                shutil.copytree(f, f'{save_folder}/{f}', ignore=shutil.ignore_patterns('__pycache__'))
+            
 
     def parse(self):
         if not self.initialized:
             self.initialize()
 
         self.opt = self.parser.parse_args()
+        self.init_save_folder()
 
         self.opt.is_train = self.is_train
 

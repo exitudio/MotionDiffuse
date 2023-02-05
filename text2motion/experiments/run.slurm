@@ -12,6 +12,7 @@
 #SBATCH --output=%x.%j.out
 
 . ~/miniconda3/etc/profile.d/conda.sh
+cd ~/git/MotionDiffuse/text2motion
 conda activate motiondiffuse
 name='test1'
 dataset_name='kit'

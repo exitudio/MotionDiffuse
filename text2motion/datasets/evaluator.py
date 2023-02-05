@@ -151,8 +151,8 @@ class Text2MotionDatasetV2(Dataset):
             for line in f.readlines():
                 id_list.append(line.strip())
         
-        # if opt.debug:
-        #     id_list = id_list[:300]
+        if opt.debug:
+            id_list = id_list[:300]
 
         new_name_list = []
         length_list = []
@@ -225,6 +225,8 @@ class Text2MotionDatasetV2(Dataset):
         return data * self.std + self.mean
 
     def __len__(self):
+        if self.opt.debug:
+            return 32
         return len(self.data_dict) - self.pointer
 
     def __getitem__(self, item):

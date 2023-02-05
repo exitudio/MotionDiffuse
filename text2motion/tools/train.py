@@ -68,6 +68,10 @@ if __name__ == '__main__':
     else:
         raise KeyError('Dataset Does Not Exist')
 
+    if opt.debug:
+        opt.num_epochs = 1
+        opt.diffusion_steps = 20
+
     dim_word = 300
     mean = np.load(pjoin(opt.data_root, 'Mean.npy'))
     std = np.load(pjoin(opt.data_root, 'Std.npy'))

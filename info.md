@@ -12,7 +12,11 @@ KeyError: 'encoder'
 ```
 ~/miniconda3/envs/motiondiffuse/bin/pip install "git+https://github.com/facebookresearch/pytorch3d.git"
 ```
-
+- if mmcv fail can install like this https://mmcv.readthedocs.io/en/latest/get_started/installation.html
+```
+pip install -U openmim
+mim install mmcv-full
+```
 
 
 
@@ -49,3 +53,7 @@ PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
     --gpu_id 0 1 2 3
 ```
 
+```
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+jupyter notebook
+```

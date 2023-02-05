@@ -23,8 +23,9 @@ class UnifyLog():
             # self.checkpoint_path = self.opt.save_folder+'checkpoint/'
             # os.makedirs(self.checkpoint_path, exist_ok=False)
             # init wandb
+            _name = opt.raw_name if hasattr(opt, 'raw_name') else opt.name
             wandb.init(project=opt.project,
-                        name=opt.name, entity='exitudio', config=opt)
+                        name=_name, entity='exitudio', config=opt)
             wandb.watch(model)
             print('---- init log -----')
             # print('path:', opt.save_folder)

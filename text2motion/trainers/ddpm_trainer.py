@@ -93,10 +93,17 @@ class DDPMTrainer(object):
             self.src_mask = self.encoder.generate_src_mask(T, cur_len).to(x_start.device)
 
     def generate_batch(self, caption, m_lens, dim_pose):
-        xf_proj, xf_out = self.encoder.encode_text(caption, self.device)
+        try:
+            xf_proj, xf_out = self.encoder.module.encode_text(caption, self.device)
+        except:
+            xf_proj, xf_out = self.encoder.encode_text(caption, self.device)
         
         B = len(caption)
-        T = min(m_lens.max(), self.encoder.num_frames)
+        try:
+            num_frames = self.encoder.module.num_frames
+        except:
+            num_frames = self.encoder.num_frames
+        T = min(m_lens.max(), num_frames)
         output = self.diffusion.p_sample_loop(
             self.encoder,
             (B, T, dim_pose),
@@ -224,6 +231,6 @@ class DDPMTrainer(object):
             if rank == 0:
                 self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it)
 
-            if epoch % self.opt.save_every_e == 0 and rank == 0:
-                self.save(pjoin(self.opt.model_dir, 'ckpt_e%03d.tar'%(epoch)),
-                            epoch, total_it=it)
+            # if epoch % self.opt.save_every_e == 0 and rank == 0:
+            #     self.save(pjoin(self.opt.model_dir, 'ckpt_e%03d.tar'%(epoch)),
+            #                 epoch, total_it=it)
