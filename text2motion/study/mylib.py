@@ -43,36 +43,8 @@ class Args:
     result_path = ''
     gpu_id = 0
 
-args = Args()
-device = torch.device('cuda')
-opt = get_opt(args.opt_path, device)
-opt.do_denoise = True
 
-assert opt.dataset_name == "t2m"
-# opt.data_root = './dataset/HumanML3D'
-# opt.motion_dir = pjoin(opt.data_root, 'new_joint_vecs')
-# opt.text_dir = pjoin(opt.data_root, 'texts')
-# opt.joints_num = 22
-opt.dim_pose = 263
-# dim_word = 300
-dim_pos_ohot = len(POS_enumerator)
-# num_classes = 200 // opt.unit_length
-# result_dict = {}
-
-
-mean = np.load('../checkpoints/t2m/t2m_motiondiffuse/meta/mean.npy')
-std = np.load('../checkpoints/t2m/t2m_motiondiffuse/meta/std.npy')
-
-encoder = build_models(opt).to(device)
-# encoder = MMDataParallel(
-#             encoder, device_ids=[0,1,2,3])
-trainer = DDPMTrainer(opt, encoder)
-trainer.load('../checkpoints/t2m/t2m_motiondiffuse/model/latest.tar')
-
-trainer.eval_mode()
-trainer.to(opt.device)
-
-def get_motion(text=args.text, motion_length=120):
+def get_motion(text, motion_length=120):
     assert motion_length <= 196
     with torch.no_grad():
         caption = [text]
@@ -399,3 +371,35 @@ def display_animate2D(data, w, h):
     fig, ax = plt.subplots()
     animate(0)
     return FuncAnimation(fig, animate, frames=data.shape[0], interval=20)
+
+
+# move this initialize out of __main__ if you wanna use "get_motion()"
+if __name__ == "__main__":
+    args = Args()
+    device = torch.device('cuda')
+    opt = get_opt(args.opt_path, device)
+    opt.do_denoise = True
+
+    assert opt.dataset_name == "t2m"
+    # opt.data_root = './dataset/HumanML3D'
+    # opt.motion_dir = pjoin(opt.data_root, 'new_joint_vecs')
+    # opt.text_dir = pjoin(opt.data_root, 'texts')
+    # opt.joints_num = 22
+    opt.dim_pose = 263
+    # dim_word = 300
+    dim_pos_ohot = len(POS_enumerator)
+    # num_classes = 200 // opt.unit_length
+    # result_dict = {}
+
+
+    mean = np.load('../checkpoints/t2m/t2m_motiondiffuse/meta/mean.npy')
+    std = np.load('../checkpoints/t2m/t2m_motiondiffuse/meta/std.npy')
+
+    encoder = build_models(opt).to(device)
+    # encoder = MMDataParallel(
+    #             encoder, device_ids=[0,1,2,3])
+    trainer = DDPMTrainer(opt, encoder)
+    trainer.load('../checkpoints/t2m/t2m_motiondiffuse/model/latest.tar')
+
+    trainer.eval_mode()
+    trainer.to(opt.device)

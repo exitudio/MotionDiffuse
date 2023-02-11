@@ -44,7 +44,8 @@ class DDPMTrainer(object):
             model_var_type=ModelVarType.FIXED_SMALL,
             loss_type=LossType.MSE
         )
-        self.sampler = create_named_schedule_sampler(sampler, self.diffusion)
+        # [INFO] uniform sampler
+        self.sampler = create_named_schedule_sampler(sampler, self.diffusion) 
         self.sampler_name = sampler
 
         if args.is_train:
@@ -76,8 +77,11 @@ class DDPMTrainer(object):
         self.motions = motions
         x_start = motions
         B, T = x_start.shape[:2]
+        # [INFO] T = max frames (196), m_len = # frames of the sample. Clip # frames no more than 196.
         cur_len = torch.LongTensor([min(T, m_len) for m_len in  m_lens]).to(self.device)
-        t, _ = self.sampler.sample(B, x_start.device)
+        # [INFO] t - # of diffusion steps (minus 1) (shuffle index 1000 steps uniformly for # of batch B)
+        t, _ = self.sampler.sample(B, x_start.device) 
+        # [INFO] just predict noise. Settings: LossType.MSE, ModelMeanType.EPSILON
         output = self.diffusion.training_losses(
             model=self.encoder,
             x_start=x_start,
@@ -87,6 +91,8 @@ class DDPMTrainer(object):
 
         self.real_noise = output['target']
         self.fake_noise = output['pred']
+
+        # [INFO] mask length of each sample
         try:
             self.src_mask = self.encoder.module.generate_src_mask(T, cur_len).to(x_start.device)
         except:

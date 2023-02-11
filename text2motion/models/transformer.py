@@ -379,6 +379,7 @@ class MotionTransformer(nn.Module):
         
     def encode_text(self, text, device):
         with torch.no_grad():
+            # [info] token of text.shape = [b, 77]. The tokens after the text input is "0". "<|startoftext|>" and "<|endoftext|>" are added. The unknow words "asldfjh" takes more than 1 tokens.
             text = clip.tokenize(text, truncate=True).to(device)
             x = self.clip.token_embedding(text).type(self.clip.dtype)  # [batch_size, n_ctx, d_model]
 
@@ -391,6 +392,8 @@ class MotionTransformer(nn.Module):
         x = self.text_pre_proj(x)
         xf_out = self.textTransEncoder(x)
         xf_out = self.text_ln(xf_out)
+        # [info] select xf_out by the max text token 
+        # xf_out[text.argmax(dim=-1), torch.arange(xf_out.shape[1])].shape = [b, text_latent_dim]
         xf_proj = self.text_proj(xf_out[text.argmax(dim=-1), torch.arange(xf_out.shape[1])])
         # B, T, D
         xf_out = xf_out.permute(1, 0, 2)
