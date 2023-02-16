@@ -5,7 +5,7 @@ import utils.paramUtil as paramUtil
 from options.train_options import TrainCompOptions
 from utils.plot_script import *
 
-from models import MotionTransformer
+from models import MotionTransformer, MaskMotionTransformer
 from trainers import DDPMTrainer
 from datasets import Text2MotionDataset
 
@@ -16,13 +16,24 @@ import torch.distributed as dist
 
 
 def build_models(opt, dim_pose):
-    encoder = MotionTransformer(
-        input_feats=dim_pose,
-        num_frames=opt.max_motion_length,
-        num_layers=opt.num_layers,
-        latent_dim=opt.latent_dim,
-        no_clip=opt.no_clip,
-        no_eff=opt.no_eff)
+    if opt.corrupt == 'diffusion':
+        encoder = MotionTransformer(
+            input_feats=dim_pose,
+            num_frames=opt.max_motion_length,
+            num_layers=opt.num_layers,
+            latent_dim=opt.latent_dim,
+            no_clip=opt.no_clip,
+            no_eff=opt.no_eff)
+    elif opt.corrupt == 'mask':
+        encoder = MaskMotionTransformer(
+            input_feats=dim_pose,
+            num_frames=opt.max_motion_length,
+            num_layers=opt.num_layers,
+            latent_dim=opt.latent_dim,
+            no_clip=opt.no_clip,
+            no_eff=opt.no_eff)
+    else:
+        raise NotImplementedError(f"unknown corrupt type: {opt.corrupt}")
     return encoder
 
 

@@ -1,6 +1,7 @@
 checkpoints
 *__pycache__
 generated_data
+generated_data_kit
 .ipynb_checkpoints
 
 study/output

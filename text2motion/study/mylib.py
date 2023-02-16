@@ -66,11 +66,13 @@ t2m_bone = [[0,2], [2,5],[5,8],[8,11],
             [0,3],[3,6],[6,9],[9,12],[12,15],
             [9,14],[14,17],[17,19],[19,21],
             [9,13],[13,16],[16,18],[18,20]]
+kit_bone = [[0, 11], [11, 12], [12, 13], [13, 14], [14, 15], [0, 16], [16, 17], [17, 18], [18, 19], [19, 20], [0, 1], [1, 2], [2, 3], [3, 4], [3, 5], [5, 6], [6, 7], [3, 8], [8, 9], [9, 10]]
 coco_bone = [[15, 13],[13, 11],[16, 14],[14, 12],[11, 12],[ 5, 11],[ 6, 12],[ 5, 6 ],[ 5, 7 ],[ 6, 8 ],[ 7, 9 ],[ 8, 10],[ 1, 2 ],[ 0, 1 ],[ 0, 2 ],[ 1, 3 ],[ 2, 4 ],[ 3, 5 ],[ 4, 6 ]]
 human36_skeleton = ((0, 7), (7, 8), (8, 9), (9, 10), (8, 11), (11, 12), (12, 13), (8, 14), (14, 15), (15, 16), (0, 1), (1, 2), (2, 3), (0, 4), (4, 5), (5, 6))
 smpl_coco_bone = t2m_bone + (np.array(coco_bone)+22).tolist()
 smpl_human36_bone = t2m_bone + (np.array(human36_skeleton)+22).tolist()
 smpl_smpl_bone = t2m_bone + (np.array(t2m_bone)+22).tolist()
+kit_kit_bone = kit_bone + (np.array(kit_bone)+21).tolist()
 
 def axis_standard(skeleton):
     skeleton = skeleton.copy()
@@ -89,7 +91,6 @@ def animate3d(skeleton, BONE_LINK=t2m_bone, first_total_standard=-1, save_path=N
     NUM_FRAMES = skeleton.shape[0]
     skeleton = skeleton[START_FRAME:NUM_FRAMES+START_FRAME]
     skeleton = axis_standard(skeleton)
-
     if BONE_LINK is not None:
         # ground truth
         bone_ids = np.array(BONE_LINK)
@@ -106,7 +107,6 @@ def animate3d(skeleton, BONE_LINK=t2m_bone, first_total_standard=-1, save_path=N
     else:
         display_points = skeleton
         mode = 'markers'
-
     # frames = [go.Frame(data=[go.Scatter3d(
     #     x=display_points[k, :, 0],
     #     y=display_points[k, :, 1],

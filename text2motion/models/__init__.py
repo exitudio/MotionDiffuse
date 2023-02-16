@@ -1,4 +1,4 @@
-from .transformer import MotionTransformer
+from .transformer import MotionTransformer, MaskMotionTransformer
 from .gaussian_diffusion import GaussianDiffusion
 
-__all__ = ['MotionTransformer', 'GaussianDiffusion']
+__all__ = ['MotionTransformer', 'GaussianDiffusion', 'MaskMotionTransformer']

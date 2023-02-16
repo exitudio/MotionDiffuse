@@ -12,6 +12,7 @@ from os.path import join as pjoin
 import codecs as cs
 import torch.distributed as dist
 from tqdm import tqdm
+import numpy as np
 
 
 from mmcv.runner import get_dist_info
@@ -69,6 +70,16 @@ class DDPMTrainer(object):
         for opt in opt_list:
             opt.step()
 
+    def get_mask(self, l, ratio, T=196):
+        mask = np.zeros((l.shape[0], T), np.float32)
+        for i, _l in enumerate(l.cpu()):
+            m_idx = np.arange(_l)
+            np.random.shuffle(m_idx)
+            m_idx = m_idx[:round(ratio*len(m_idx))]
+            mask[i, m_idx] = 1.
+        mask = np.expand_dims(mask, -1)
+        return mask
+
     def forward(self, batch_data, eval_mode=False):
         caption, motions, m_lens = batch_data
         motions = motions.detach().to(self.device).float()
@@ -82,12 +93,21 @@ class DDPMTrainer(object):
         # [INFO] t - # of diffusion steps (minus 1) (shuffle index 1000 steps uniformly for # of batch B)
         t, _ = self.sampler.sample(B, x_start.device) 
         # [INFO] just predict noise. Settings: LossType.MSE, ModelMeanType.EPSILON
-        output = self.diffusion.training_losses(
-            model=self.encoder,
-            x_start=x_start,
-            t=t,
-            model_kwargs={"text": caption, "length": cur_len}
-        )
+        if self.opt.corrupt == 'diffusion':
+            output = self.diffusion.training_losses(
+                model=self.encoder,
+                x_start=x_start,
+                t=t,
+                model_kwargs={"text": caption, "length": cur_len}
+            )
+        elif self.opt.corrupt == 'mask':
+            mask = self.get_mask(cur_len, ratio=.5, T=T)
+            mask = torch.from_numpy(mask).to(x_start.device)
+            t = torch.ones_like(t, device=self.device) * 4
+            output = {
+                'target': x_start,
+                'pred': self.encoder(x_start, t, text=caption, length=cur_len, mask=mask),
+            }
 
         self.real_noise = output['target']
         self.fake_noise = output['pred']

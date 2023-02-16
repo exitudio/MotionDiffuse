@@ -21,7 +21,7 @@ from utils.motion_process import recover_from_ric
 def plot_t2m(data, result_path, caption):
     joint = recover_from_ric(torch.from_numpy(data).float(), opt.joints_num).numpy()
     # joint = motion_temporal_filter(joint, sigma=1)
-    plot_3d_motion(result_path, paramUtil.t2m_kinematic_chain, joint, title=caption, fps=20)
+    plot_3d_motion(result_path, paramUtil.kit_kinematic_chain, joint/1000, title=caption, fps=20)
 
 
 def build_models(opt):
@@ -49,13 +49,13 @@ if __name__ == '__main__':
     opt = get_opt(args.opt_path, device)
     opt.do_denoise = True # a person runs sadly , 120 frames
 
-    assert opt.dataset_name == "t2m"
+    opt.dataset_name == "kit"
     assert args.motion_length <= 196
-    opt.data_root = './dataset/HumanML3D'
+    opt.data_root = './dataset/KIT-ML'
     opt.motion_dir = pjoin(opt.data_root, 'new_joint_vecs')
     opt.text_dir = pjoin(opt.data_root, 'texts')
-    opt.joints_num = 22
-    opt.dim_pose = 263
+    opt.joints_num = 21
+    opt.dim_pose = 251
     dim_word = 300
     dim_pos_ohot = len(POS_enumerator)
     num_classes = 200 // opt.unit_length
@@ -79,4 +79,7 @@ if __name__ == '__main__':
             motion = pred_motions[0].cpu().numpy()
             motion = motion * std + mean
             title = args.text + " #%d" % motion.shape[0]
-            plot_t2m(motion, 'generated_data/'+title+'.gif', title)
+            plot_t2m(motion, 'generated_data_kit/'+title+'.gif', title)
+
+
+

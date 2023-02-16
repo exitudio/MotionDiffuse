@@ -430,3 +430,44 @@ class MotionTransformer(nn.Module):
 
         output = self.out(h).view(B, T, -1).contiguous()
         return output
+
+from timm.models.layers import trunc_normal_
+class MaskMotionTransformer(MotionTransformer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mask_token = nn.Parameter(
+            torch.zeros(1, 1, self.latent_dim))
+        self._trunc_normal_(self.mask_token, std=.02)
+
+    def _trunc_normal_(self, tensor, mean=0., std=1.):
+        trunc_normal_(tensor, mean=mean, std=std, a=-std, b=std)
+
+
+    def forward(self, x, timesteps, length=None, text=None, xf_proj=None, xf_out=None, mask=None):
+        """
+        x: B, T, D
+        """
+        B, T = x.shape[0], x.shape[1]
+        if text is not None and len(text) != B:
+            index = x.device.index
+            text = text[index * B: index * B + B]
+        if xf_proj is None or xf_out is None:
+            xf_proj, xf_out = self.encode_text(text, x.device)
+
+        emb = self.time_embed(timestep_embedding(timesteps, self.latent_dim)) + xf_proj
+
+        # B, T, latent_dim
+        h = self.joint_embed(x)
+        h = h + self.sequence_embedding.unsqueeze(0)[:, :T, :]
+
+        if mask is not None:
+            mask_token = self.mask_token.expand(B, T, -1)
+            h = h * (1 - mask) + mask_token * mask
+        
+
+        src_mask = self.generate_src_mask(T, length).to(x.device).unsqueeze(-1)
+        for module in self.temporal_decoder_blocks:
+            h = module(h, xf_out, emb, src_mask)
+
+        output = self.out(h).view(B, T, -1).contiguous()
+        return output

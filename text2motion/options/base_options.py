@@ -59,9 +59,10 @@ class BaseOptions():
         self.initialized = True
 
 
-        # UnifyLog
+        # EXIT option
         self.parser.add_argument("--project", default="project_name")
         self.parser.add_argument('--debug', type=str2bool, nargs='?', default=True)
+        self.parser.add_argument('--corrupt', type=str, default='diffusion', help='diffusion or mask')
 
     def init_save_folder(self):
         self.opt.raw_name = self.opt.name

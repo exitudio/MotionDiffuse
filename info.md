@@ -29,6 +29,11 @@ conda activate motiondiffuse
 python -u ./tools/visualization.py --opt_path checkpoints/t2m/t2m_motiondiffuse/opt.txt --text "a man backflip" --motion_length 2     --result_path "test_sample.gif"
 ```
 
+visualize KIT
+```
+python -u tools/visualization.py     --opt_path checkpoints/kit/kit_motiondiffuse/opt.txt     --text "A person throwing a left jab"     --motion_length 60     --result_path "test_sample.gif"     --gpu_id 0
+```
+
 generate_motion
 ```
 cd /home/epinyoan/git/MotionDiffuse/text2motion/study
