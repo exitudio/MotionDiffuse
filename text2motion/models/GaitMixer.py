@@ -43,7 +43,7 @@ class Attention(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
-    def forward(self, x):
+    def forward(self, x, src_mask=None):
         B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C //
                                   self.num_heads).permute(2, 0, 3, 1, 4)
@@ -76,9 +76,9 @@ class Block(nn.Module):
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim,
                        act_layer=act_layer, drop=drop)
 
-    def forward(self, x):
+    def forward(self, x, src_mask=None):
         if self.training:
-            x = x + self.drop_path(self.attn(self.norm1(x)))
+            x = x + self.drop_path(self.attn(self.norm1(x), src_mask))
             x = x + self.drop_path(self.mlp(self.norm2(x)))
         else:
             x = x + self.attn(self.norm1(x))
@@ -266,7 +266,6 @@ class SpatialPatchEmbedding(nn.Module):
             other_joints = self.other_joints_embed(other_joints)
 
             x = torch.concat([root_joint, other_joints], dim=-2)
-            print('--- encode ----')
         elif type == 'decode':
             b, f, tk, e = x.shape
             ######## Root Joint ########
@@ -288,17 +287,16 @@ class SpatialPatchEmbedding(nn.Module):
 
             x = torch.concat(
                 [root_info, j_pos, j_rot, j_vel, foot_contact], dim=-1)
-            print('x:', x.shape)
         return x
 
 
 
 class SpatioTemporalTransformer(nn.Module):
-    def __init__(self, num_frames=9, num_joints=17, spatial_embed_dim=8, depth=4):
+    def __init__(self, num_frames=9, num_joints=17, spatial_embed_dim=32, depth=4):
         super().__init__()
         norm_layer = partial(nn.LayerNorm, eps=1e-6)
         self.spatial_embed_dim = spatial_embed_dim
-        self.temporal_embed_dim = spatial_embed_dim  # * num_joints
+        self.temporal_embed_dim = spatial_embed_dim  * num_joints
 
         # spatial patch embedding
         self.spatial_patch_embedding = SpatialPatchEmbedding(
@@ -333,9 +331,9 @@ class SpatioTemporalTransformer(nn.Module):
             x = blk(x)
         return self.spatial_norm(x)
 
-    def temporal_transformer(self, x):
+    def temporal_transformer(self, x, src_mask):
         for blk in self.temporal_blocks:
-            x = blk(x)
+            x = blk(x, src_mask)
         return self.temporal_norm(x)
 
     def spatial_forward(self, x):
@@ -344,15 +342,15 @@ class SpatioTemporalTransformer(nn.Module):
         x += self.spatial_pos_embed
         x = self.pos_drop(x)
         x = self.spatial_transformer(x)
-        x = rearrange(x, '(b f) j e -> (b j) f e', f=f)
+        x = rearrange(x, '(b f) j e -> b f (j e)', f=f)
         return x
 
-    def temporal_forward(self, x):
+    def temporal_forward(self, x, src_mask):
         b, f, e = x.shape
         x += self.temporal_pos_embed
         x = self.pos_drop(x)
-        x = self.temporal_transformer(x)
-        x = rearrange(x, '(b j) f e -> b f j e',
+        x = self.temporal_transformer(x, src_mask)
+        x = rearrange(x, 'b f (j e) -> b f j e',
                       j=self.spatial_patch_embedding.num_tokens)
         return x
 
@@ -360,7 +358,7 @@ class SpatioTemporalTransformer(nn.Module):
         src_mask = self.generate_src_mask(x.shape[1], length).to(x.device).unsqueeze(-1)
         x = self.spatial_patch_embedding(x, type='encode')
         x = self.spatial_forward(x)
-        x = self.temporal_forward(x,)
+        x = self.temporal_forward(x, src_mask)
         x = self.spatial_patch_embedding(x, type='decode')
         return x
 
