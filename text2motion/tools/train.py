@@ -13,9 +13,19 @@ from mmcv.runner import get_dist_info, init_dist
 from mmcv.parallel import MMDistributedDataParallel, MMDataParallel
 import torch
 import torch.distributed as dist
+from models.GaitMixer import SpatioTemporalTransformer
 
 
 def build_models(opt, dim_pose):
+    encoder = SpatioTemporalTransformer(
+            num_frames=opt.max_motion_length,
+            num_joints=opt.joints_num,
+            # num_layers=opt.num_layers,
+            # latent_dim=opt.latent_dim,
+            # no_clip=opt.no_clip,
+            # no_eff=opt.no_eff
+    )
+    return encoder
     if opt.corrupt == 'diffusion':
         encoder = MotionTransformer(
             input_feats=dim_pose,

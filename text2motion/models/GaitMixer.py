@@ -225,74 +225,72 @@ class SpatialPatchEmbedding(nn.Module):
         super().__init__()
         self.num_joints = num_joints
         self.spatial_embed_dim = spatial_embed_dim
-        self.root__rotvelo_posY = nn.Linear(2, spatial_embed_dim)
-        self.root__velo = nn.Linear(2, spatial_embed_dim)
-        self.j_pos = nn.Linear(3, spatial_embed_dim)
-        self.j_rot = nn.Linear(6, spatial_embed_dim)
-        self.j_vel = nn.Linear(3, spatial_embed_dim)
-        self.foot_contact = nn.Linear(4, spatial_embed_dim)
+
+        # TEST
+        # def linear(x):
+        #     r = 11 if x.shape[-1]==12 else 12
+        #     return x.repeat(1, 1 , 1, r)
+        # def delinear(dim):
+        #     def temp(x):
+        #         return x[..., :dim]
+        #     return temp
+
+        self.root_joint_embed = nn.Linear(11, spatial_embed_dim)
+        self.other_joints_embed = nn.Linear(12, spatial_embed_dim)
+
+        self.root_joint_projection = nn.Linear(spatial_embed_dim, 11)
+        self.other_joints_projection = nn.Linear(spatial_embed_dim, 12)
+
         self.idx = np.cumsum(
-            [2, 2, 3*(num_joints-1), 6*(num_joints-1), 3*num_joints, 4])
-        self.num_tokens = 1+1+(num_joints-1)+(num_joints-1)+num_joints+1
+            [4, 3*(num_joints-1), 6*(num_joints-1), 3*num_joints, 4])
+        self.num_tokens = num_joints
 
-    def forward(self, x):
-        b, f, d = x.shape
-        root__rotvelo_posY = x[:, :, :self.idx[0]]
-        root__velo = x[:, :, self.idx[0]:self.idx[1]]
-        j_pos = x[:, :, self.idx[1]:self.idx[2]].reshape(b, -1, 3)
-        j_rot = x[:, :, self.idx[2]:self.idx[3]].reshape(b, -1, 6)
-        j_vel = x[:, :, self.idx[3]:self.idx[4]].reshape(b, -1, 3)
-        foot_contact = x[:, :, self.idx[4]:]
+    def forward(self, x, type='encode'):
+        if type == 'encode':
+            b, f, d = x.shape
 
-        root__rotvelo_posY = self.root__rotvelo_posY(
-            root__rotvelo_posY).reshape(b, f, -1, self.spatial_embed_dim)
-        root__velo = self.root__velo(root__velo).reshape(
-            b, f, -1, self.spatial_embed_dim)
-        j_pos = self.j_pos(j_pos).reshape(b, f, -1, self.spatial_embed_dim)
-        j_rot = self.j_rot(j_rot).reshape(b, f, -1, self.spatial_embed_dim)
-        j_vel = self.j_vel(j_vel).reshape(b, f, -1, self.spatial_embed_dim)
-        foot_contact = self.foot_contact(foot_contact).reshape(
-            b, f, -1, self.spatial_embed_dim)
+            root_info = x[:, :, :self.idx[0]]  # [b, f, 4]
+            # [b, f, j-1, 3]
+            j_pos = x[:, :, self.idx[0]:self.idx[1]].reshape(b, f, -1, 3)
+            j_rot = x[:, :, self.idx[1]:self.idx[2]].reshape(b, f, -1, 6)
+            j_vel = x[:, :, self.idx[2]:self.idx[3]].reshape(b, f, -1, 3)
+            foot_contact = x[:, :, self.idx[3]:]  # [b, f, 4]
 
-        x = torch.concat([root__rotvelo_posY, root__velo,
-                          j_pos, j_rot, j_vel, foot_contact], dim=-2)
+            # [b, f, 1, 11]
+            root_joint = torch.concat(
+                [root_info, j_vel[:, :, 0], foot_contact], dim=-1).unsqueeze(dim=-2)
+            # [b, f, j-1, 12]
+            other_joints = torch.concat(
+                [j_pos, j_rot, j_vel[:, :, 1:]], dim=-1)
+            root_joint = self.root_joint_embed(root_joint)
+            other_joints = self.other_joints_embed(other_joints)
+
+            x = torch.concat([root_joint, other_joints], dim=-2)
+            print('--- encode ----')
+        elif type == 'decode':
+            b, f, tk, e = x.shape
+            ######## Root Joint ########
+            # [b, f, 11]
+            root_joint = self.root_joint_projection(x[:, :, 0])
+            # [b, f, 4]
+            root_info = root_joint[:, :, :4]
+            j_vel_0 = root_joint[:, :, 4:-4]
+            foot_contact = root_joint[:, :, -4:]
+
+            ######## Other joints ########
+            # [b, f, j-1, 12]
+            other_joints = self.other_joints_projection(x[:, :, 1:])
+            # [b, f, j-1, 3]
+            j_pos = other_joints[..., :3].reshape(b, f, -1)
+            j_rot = other_joints[..., 3:-3].reshape(b, f, -1)
+            j_vel = other_joints[..., -3:].reshape(b, f, -1)
+            j_vel = torch.concat([j_vel_0, j_vel], dim=-1).reshape(b, f, -1)
+
+            x = torch.concat(
+                [root_info, j_pos, j_rot, j_vel, foot_contact], dim=-1)
+            print('x:', x.shape)
         return x
 
-
-class ProjectionHead(nn.Module):
-    def __init__(self, num_joints, spatial_embed_dim):
-        super().__init__()
-        self.num_joints = num_joints
-        self.spatial_embed_dim = spatial_embed_dim
-        self.root__rotvelo_posY = nn.Linear(spatial_embed_dim, 2)
-        self.root__velo = nn.Linear(spatial_embed_dim, 2)
-        self.j_pos = nn.Linear(spatial_embed_dim, 3)
-        self.j_rot = nn.Linear(spatial_embed_dim, 6)
-        self.j_vel = nn.Linear(spatial_embed_dim, 3)
-        self.foot_contact = nn.Linear(spatial_embed_dim, 4)
-        self.idx = np.cumsum(
-            [1, 1, (num_joints-1), (num_joints-1), num_joints, 1])
-
-    def forward(self, x):
-        b, f, tk, e = x.shape
-        root__rotvelo_posY = x[:, :, :self.idx[0]]
-        root__velo = x[:, :, self.idx[0]:self.idx[1]]
-        j_pos = x[:, :, self.idx[1]:self.idx[2]]
-        j_rot = x[:, :, self.idx[2]:self.idx[3]]
-        j_vel = x[:, :, self.idx[3]:self.idx[4]]
-        foot_contact = x[:, :, self.idx[4]:]
-
-        root__rotvelo_posY = self.root__rotvelo_posY(
-            root__rotvelo_posY).reshape(b, f, -1)
-        root__velo = self.root__velo(root__velo).reshape(b, f, -1)
-        j_pos = self.j_pos(j_pos).reshape(b, f, -1)
-        j_rot = self.j_rot(j_rot).reshape(b, f, -1)
-        j_vel = self.j_vel(j_vel).reshape(b, f, -1)
-        foot_contact = self.foot_contact(foot_contact).reshape(b, f, -1)
-
-        x = torch.concat([root__rotvelo_posY, root__velo,
-                          j_pos, j_rot, j_vel, foot_contact], dim=-1)
-        return x
 
 
 class SpatioTemporalTransformer(nn.Module):
@@ -329,7 +327,6 @@ class SpatioTemporalTransformer(nn.Module):
 
         self.spatial_norm = norm_layer(spatial_embed_dim)
         self.temporal_norm = norm_layer(self.temporal_embed_dim)
-        self.projection_head = ProjectionHead(num_joints, spatial_embed_dim)
 
     def spatial_transformer(self, x):
         for blk in self.spatial_blocks:
@@ -342,8 +339,7 @@ class SpatioTemporalTransformer(nn.Module):
         return self.temporal_norm(x)
 
     def spatial_forward(self, x):
-        b, f, d = x.shape
-        x = self.spatial_patch_embedding(x)
+        b, f, j, d = x.shape
         x = rearrange(x, 'b f j d -> (b f) j  d')
         x += self.spatial_pos_embed
         x = self.pos_drop(x)
@@ -361,7 +357,17 @@ class SpatioTemporalTransformer(nn.Module):
         return x
 
     def forward(self, x, timesteps, length=None, text=None):
+        src_mask = self.generate_src_mask(x.shape[1], length).to(x.device).unsqueeze(-1)
+        x = self.spatial_patch_embedding(x, type='encode')
         x = self.spatial_forward(x)
-        x = self.temporal_forward(x)
-        x = self.projection_head(x)
+        x = self.temporal_forward(x,)
+        x = self.spatial_patch_embedding(x, type='decode')
         return x
+
+    def generate_src_mask(self, T, length):
+        B = len(length)
+        src_mask = torch.ones(B, T)
+        for i in range(B):
+            for j in range(length[i], T):
+                src_mask[i, j] = 0
+        return src_mask
