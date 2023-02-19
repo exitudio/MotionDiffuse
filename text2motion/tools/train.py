@@ -5,7 +5,7 @@ import utils.paramUtil as paramUtil
 from options.train_options import TrainCompOptions
 from utils.plot_script import *
 
-from models import MotionTransformer, MaskMotionTransformer
+from models import MotionTransformer, MaskMotionTransformer, SpatioTemporalMotionTransformer
 from trainers import DDPMTrainer
 from datasets import Text2MotionDataset
 
@@ -14,18 +14,20 @@ from mmcv.parallel import MMDistributedDataParallel, MMDataParallel
 import torch
 import torch.distributed as dist
 from models.GaitMixer import SpatioTemporalTransformer
+from utils.plot_script import plot_3d_motion
+from utils.motion_process import recover_from_ric
 
 
 def build_models(opt, dim_pose):
-    encoder = SpatioTemporalTransformer(
-            num_frames=opt.max_motion_length,
-            num_joints=opt.joints_num,
-            # num_layers=opt.num_layers,
-            # latent_dim=opt.latent_dim,
-            # no_clip=opt.no_clip,
-            # no_eff=opt.no_eff
-    )
-    return encoder
+    # encoder = SpatioTemporalTransformer(
+    #         num_frames=opt.max_motion_length,
+    #         num_joints=opt.joints_num,
+    #         # num_layers=opt.num_layers,
+    #         # latent_dim=opt.latent_dim,
+    #         # no_clip=opt.no_clip,
+    #         # no_eff=opt.no_eff
+    # )
+    # return encoder
     if opt.corrupt == 'diffusion':
         encoder = MotionTransformer(
             input_feats=dim_pose,
@@ -115,3 +117,21 @@ if __name__ == '__main__':
     trainer = DDPMTrainer(opt, encoder)
     train_dataset = Text2MotionDataset(opt, mean, std, train_split_file, opt.times)
     trainer.train(train_dataset)
+
+    # EVAL
+    opt.is_train = False
+    trainer.eval_mode()
+    # for debugging
+    # trainer.load('/home/epinyoan/git/MotionDiffuse/text2motion/checkpoints/kit/temp2/latest.tar')
+    with torch.no_grad():
+        caption = ["a person is jumping"]
+        m_lens = torch.LongTensor([60]).cuda()
+        pred_motions = trainer.generate(caption, m_lens, dim_pose)
+        motion = pred_motions[0].cpu().numpy()
+        motion = motion * std + mean
+        title = caption[0] + " #%d" % motion.shape[0]
+        joint = recover_from_ric(torch.from_numpy(motion).float(), opt.joints_num).numpy()
+        if opt.dataset_name == 'kit':
+            joint = joint/1000
+
+        plot_3d_motion(f'{opt.save_root}/{title}.gif', kinematic_chain, joint, title=title, fps=20)

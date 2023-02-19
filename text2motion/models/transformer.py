@@ -10,6 +10,7 @@ import numpy as np
 import clip
 
 import math
+from einops import rearrange, repeat
 
 
 def timestep_embedding(timesteps, dim, max_period=10000):
@@ -422,6 +423,68 @@ class MotionTransformer(nn.Module):
 
         # B, T, latent_dim
         h = self.joint_embed(x)
+        h = h + self.sequence_embedding.unsqueeze(0)[:, :T, :]
+
+        src_mask = self.generate_src_mask(T, length).to(x.device).unsqueeze(-1)
+        for module in self.temporal_decoder_blocks:
+            h = module(h, xf_out, emb, src_mask)
+
+        output = self.out(h).view(B, T, -1).contiguous()
+        return output
+
+from models.GaitMixer import Block, SpatialPatchEmbedding
+from functools import partial
+import datetime
+class SpatioTemporalMotionTransformer(MotionTransformer):
+    def __init__(self, num_joints, *args, **kwargs):
+        self.num_joints = num_joints
+        spatial_embed_dim = 32
+        kwargs['latent_dim'] = self.num_joints * spatial_embed_dim
+        super().__init__(*args, **kwargs)
+        depth = kwargs['num_layers']
+        norm_layer = partial(nn.LayerNorm, eps=1e-6)
+
+        self.spatial_patch_embedding = SpatialPatchEmbedding(
+            num_joints, spatial_embed_dim)
+        self.spatial_pos_embed = nn.Parameter(
+            torch.zeros(1, self.spatial_patch_embedding.num_tokens, spatial_embed_dim))
+        self.spatial_norm = norm_layer(spatial_embed_dim)
+        
+        
+        dpr = [x.item() for x in torch.linspace(0, 0., depth)]
+        self.spatial_blocks = nn.ModuleList([
+            Block(
+                dim=spatial_embed_dim, num_heads=8, mlp_ratio=2., qkv_bias=True,
+                drop=0., attn_drop=0., drop_path=dpr[i], norm_layer=norm_layer)
+            for i in range(depth)])
+        
+    def spatial_forward(self, x):
+        b, f, j, d = x.shape
+        x = rearrange(x, 'b f j d -> (b f) j  d')
+        x += self.spatial_pos_embed
+        for blk in self.spatial_blocks:
+            x = blk(x)
+        x = self.spatial_norm(x)
+        x = rearrange(x, '(b f) j e -> b f (j e)', f=f)
+        return x
+    
+    def forward(self, x, timesteps, length=None, text=None, xf_proj=None, xf_out=None):
+        """
+        x: B, T, D
+        """
+        B, T = x.shape[0], x.shape[1]
+        if text is not None and len(text) != B:
+            index = x.device.index
+            text = text[index * B: index * B + B]
+        if xf_proj is None or xf_out is None:
+            xf_proj, xf_out = self.encode_text(text, x.device)
+
+        emb = self.time_embed(timestep_embedding(timesteps, self.latent_dim)) + xf_proj
+
+        x = self.spatial_patch_embedding(x, type='encode')
+        h = self.spatial_forward(x)
+
+        # B, T, latent_dim
         h = h + self.sequence_embedding.unsqueeze(0)[:, :T, :]
 
         src_mask = self.generate_src_mask(T, length).to(x.device).unsqueeze(-1)

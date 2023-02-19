@@ -16,6 +16,7 @@ from models import MotionTransformer
 from utils.word_vectorizer import WordVectorizer, POS_enumerator
 from utils.utils import *
 from utils.motion_process import recover_from_ric
+from tools.train import build_models
 
 
 def plot_t2m(data, result_path, caption):
@@ -24,15 +25,15 @@ def plot_t2m(data, result_path, caption):
     plot_3d_motion(result_path, paramUtil.kit_kinematic_chain, joint/1000, title=caption, fps=20)
 
 
-def build_models(opt):
-    encoder = MotionTransformer(
-        input_feats=opt.dim_pose,
-        num_frames=opt.max_motion_length,
-        num_layers=opt.num_layers,
-        latent_dim=opt.latent_dim,
-        no_clip=opt.no_clip,
-        no_eff=opt.no_eff)
-    return encoder
+# def build_models(opt):
+#     encoder = MotionTransformer(
+#         input_feats=opt.dim_pose,
+#         num_frames=opt.max_motion_length,
+#         num_layers=opt.num_layers,
+#         latent_dim=opt.latent_dim,
+#         no_clip=opt.no_clip,
+#         no_eff=opt.no_eff)
+#     return encoder
 
 
 if __name__ == '__main__':
@@ -47,6 +48,7 @@ if __name__ == '__main__':
     # device = torch.device('cuda:%d' % args.gpu_id if args.gpu_id != -1 else 'cpu')
     device = torch.device('cuda')
     opt = get_opt(args.opt_path, device)
+    opt.debug = True # overwrite to avoid w&b log
     opt.do_denoise = True # a person runs sadly , 120 frames
 
     opt.dataset_name == "kit"
@@ -63,7 +65,7 @@ if __name__ == '__main__':
     mean = np.load(pjoin(opt.meta_dir, 'mean.npy'))
     std = np.load(pjoin(opt.meta_dir, 'std.npy'))
 
-    encoder = build_models(opt).to(device)
+    encoder = build_models(opt, opt.dim_pose).to(device)
     trainer = DDPMTrainer(opt, encoder)
     trainer.load(pjoin(opt.model_dir, opt.which_epoch + '.tar'))
 
