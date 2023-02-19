@@ -240,6 +240,8 @@ def evaluation(log_file, unify_log):
                     line = f'---> [{model_name}]'
                     for i in range(len(mean)):
                         line += '(top %d) Mean: %.4f CInt: %.4f;' % (i+1, mean[i], conf_interval[i])
+                        if model_name == 'text2motion':
+                            unify_log.log({metric_name+str(i+1): mean[i]}, step=0)
                     print(line)
                     print(line, file=f, flush=True)
 
