@@ -73,7 +73,7 @@ class BaseOptions():
             self.opt.name = f'{date}_{self.opt.name}'
             save_folder = f"./{self.opt.checkpoints_dir}/{self.opt.dataset_name}/{self.opt.name}/"
             os.makedirs(save_folder, exist_ok=False)
-            for f in ['datasets', 'experiments', 'models', 'options', 'tools', 'trainers', 'utils']:
+            for f in ['datasets', 'experiments', 'models', 'options', 'tools', 'trainers', 'utils', 'mask_model']:
                 shutil.copytree(f, f'{save_folder}/{f}', ignore=shutil.ignore_patterns('__pycache__'))
             
 

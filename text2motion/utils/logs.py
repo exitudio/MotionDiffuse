@@ -36,7 +36,7 @@ class UnifyLog():
             wandb.log(*args, **kwargs)
 
     def save_model(self, model, name):
-        if not self.opt.debug and self.opt.save_model:
+        if not self.opt.debug: # and self.opt.save_model
             if hasattr(model, 'module'):
                 model = model.module
-            torch.save(model.state_dict(), self.checkpoint_path+name)
+            torch.save(model.state_dict(), f'{self.opt.save_root}/{name}')

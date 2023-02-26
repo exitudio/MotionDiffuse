@@ -118,7 +118,7 @@ if __name__ == '__main__':
     train_dataset = Text2MotionDataset(opt, mean, std, train_split_file, opt.times)
     trainer.train(train_dataset)
 
-    # EVAL
+    # Visualize
     opt.is_train = False
     trainer.eval_mode()
     # for debugging
