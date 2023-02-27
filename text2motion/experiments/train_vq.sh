@@ -1,6 +1,6 @@
 #!/bin/sh
 # cd /users/epinyoan/git/MotionDiffuse/text2motion/experiments/
-# sbatch train.sh
+# sbatch train_vq.sh
 # screen -S temp ~/git/MotionDiffuse/text2motion/experiments/train_vq.sh
 
 #SBATCH --job-name=job
@@ -15,7 +15,7 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MotionDiffuse/text2motion
 conda activate motiondiffuse
-name='4_vqgan'
+name='9_vqgan_quatize_Discriminator_CB32_mse'
 dataset_name='kit'
 debug='f'
 export CUDA_VISIBLE_DEVICES=0,1
@@ -29,7 +29,7 @@ PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
     --diffusion_steps 1000 \
     --corrupt diffusion \
     --data_parallel \
-    --project MD_1 \
+    --project MD_vqgan \
     --name ${name} \
     --debug ${debug} \
     --gpu_id 0 1

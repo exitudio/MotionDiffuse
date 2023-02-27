@@ -16,3 +16,6 @@ def vanilla_d_loss(logits_real, logits_fake):
 class MeanMask():
     def __init__(self, src_mask, dim_pose):
         self.denom = src_mask.sum() * dim_pose
+
+    def mean(self, x):
+        return x.sum() / self.denom

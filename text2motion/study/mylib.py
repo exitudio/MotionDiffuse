@@ -19,8 +19,8 @@ from utils.word_vectorizer import WordVectorizer, POS_enumerator
 from utils.utils import *
 from utils.motion_process import recover_from_ric, recover_from_rot, recover_root_rot_pos, quaternion_to_cont6d
 from utils.skeleton import Skeleton
-from smplpytorch.pytorch.smpl_layer import SMPL_Layer
-from display_utils import display_model
+# from smplpytorch.pytorch.smpl_layer import SMPL_Layer
+# from display_utils import display_model
 import copy
 from utils.quaternion import *
 from mmcv.parallel import MMDistributedDataParallel, MMDataParallel

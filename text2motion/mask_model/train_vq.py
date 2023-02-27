@@ -23,7 +23,7 @@ from motiontransformer import MotionTransformerOnly, generate_src_mask
 from mask_model.quantize import VectorQuantizer2
 from torch.utils.data import DataLoader
 from datasets import build_dataloader
-from mask_model.util import hinge_d_loss, vanilla_d_loss
+from mask_model.util import hinge_d_loss, vanilla_d_loss, MeanMask
 from utils.logs import UnifyLog
 from study.mylib import visualize_2motions
 
@@ -35,11 +35,21 @@ if __name__ == '__main__':
     std = np.load(pjoin(opt.meta_dir, 'std.npy'))
 
     latent_dim = 256
-    encoder = MotionTransformerOnly(input_feats=dim_pose, latent_dim=latent_dim, num_layers=8)
-    decoder = MotionTransformerOnly(input_feats=latent_dim, output_feats=dim_pose, latent_dim=latent_dim, num_layers=8)
-    discriminator = MotionTransformerOnly(input_feats=dim_pose, output_feats=1, latent_dim=latent_dim, num_layers=4)
-    quantize = VectorQuantizer2(n_e = 1024,
-                                e_dim = latent_dim)
+    codebook_dim = 32
+    encoder = MotionTransformerOnly(input_feats=dim_pose, 
+                                    output_feats=codebook_dim, 
+                                    latent_dim=latent_dim, 
+                                    num_layers=8)
+    decoder = MotionTransformerOnly(input_feats=codebook_dim, 
+                                    output_feats=dim_pose, 
+                                    latent_dim=latent_dim, 
+                                    num_layers=8)
+    discriminator = MotionTransformerOnly(input_feats=dim_pose, 
+                                    output_feats=1, 
+                                    latent_dim=latent_dim, 
+                                    num_layers=4)
+    quantize = VectorQuantizer2(n_e = 8192,
+                                e_dim = codebook_dim)
     unify_log = UnifyLog(opt, encoder)
     if opt.data_parallel:
         encoder = MMDataParallel(encoder.cuda(opt.gpu_id[0]), device_ids=opt.gpu_id)
@@ -77,11 +87,12 @@ if __name__ == '__main__':
             B, T = motions.shape[:2]
             length = torch.LongTensor([min(T, m_len) for m_len in  m_lens]).to(opt.device)
             src_mask = generate_src_mask(T, length).to(motions.device).unsqueeze(-1)
+            mean_mask = MeanMask(src_mask, dim_pose)
 
             z = encoder(motions, src_mask=src_mask, length=length)
             z_q = quantize(z) * src_mask
-            qloss = torch.mean((z_q.detach()-z)**2) + 0.25 * \
-                   torch.mean((z_q - z.detach()) ** 2)
+            qloss = mean_mask.mean((z_q.detach()-z)**2 * src_mask) + 0.25 * \
+                            mean_mask.mean((z_q - z.detach()) ** 2 * src_mask)
             # preserve gradients
             z_q = z + (z_q - z).detach()
             recon = decoder(z_q, src_mask=src_mask, length=length)
@@ -90,10 +101,10 @@ if __name__ == '__main__':
             ##### GAN loss
             # [TODO] mask the shorter frames for gan loss
             # [TODO] skip perceptual loss (LPIPS)
-            rec_loss = (torch.abs(motions - recon) * src_mask).sum()/(src_mask.sum() * dim_pose)
+            rec_loss = mean_mask.mean((motions - recon) ** 2 * src_mask)
             # [TODO] clarify: discriminator of VQGAN output only 1x30x30 from input 3x256x256
             # [TODO] g_loss is negative. Probably normal??
-            g_loss = -torch.mean(logits_fake)
+            g_loss = -mean_mask.mean(logits_fake)
             d_weight = .1 # [TODO] skip calculate_adaptive_weight
             disc_factor = 1 # [TODO] adopt_weight
             loss = rec_loss + d_weight * disc_factor * g_loss + qloss
@@ -117,13 +128,15 @@ if __name__ == '__main__':
             unify_log.log({'rec_loss:':rec_loss, 
                            'g_loss':g_loss, 
                            'qloss':qloss, 
-                           'Dis loss': d_loss}, step=epoch*num_batch + i)
+                           'Dis loss': d_loss
+                           }, step=epoch*num_batch + i)
 
         motion1 = motions[0].detach().cpu().numpy()
         motion2 = recon[0].detach().cpu().numpy()
         visualize_2motions(motion1, motion2, std, mean, opt.dataset_name, length[0], 
                            save_path=f'{opt.save_root}/epoch_{epoch}.html')
         unify_log.save_model(encoder, 'encoder.pth')
+        unify_log.save_model(quantize, 'quantize.pth')
         unify_log.save_model(decoder, 'decoder.pth')
 
     # # Visualize
