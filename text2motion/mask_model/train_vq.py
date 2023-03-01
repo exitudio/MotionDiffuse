@@ -77,6 +77,7 @@ if __name__ == '__main__':
     cur_epoch = 0
     encoder.train(), decoder.train(), discriminator.train(), quantize.train()
     num_batch = len(train_loader)
+    dis_start_epoch = 50
     print('num batch:', num_batch)
 
 
@@ -96,34 +97,38 @@ if __name__ == '__main__':
             # preserve gradients
             z_q = z + (z_q - z).detach()
             recon = decoder(z_q, src_mask=src_mask, length=length)
-            logits_fake = discriminator(recon, src_mask=src_mask, length=length)
 
             ##### GAN loss
             # [TODO] mask the shorter frames for gan loss
             # [TODO] skip perceptual loss (LPIPS)
             rec_loss = mean_mask.mean((motions - recon) ** 2 * src_mask)
+            loss = rec_loss + qloss
+            
             # [TODO] clarify: discriminator of VQGAN output only 1x30x30 from input 3x256x256
             # [TODO] g_loss is negative. Probably normal??
-            g_loss = -mean_mask.mean(logits_fake)
-            d_weight = .1 # [TODO] skip calculate_adaptive_weight
-            disc_factor = 1 # [TODO] adopt_weight
-            loss = rec_loss + d_weight * disc_factor * g_loss + qloss
+            g_loss = 0
+            if epoch > dis_start_epoch:
+                logits_fake = discriminator(recon, src_mask=src_mask, length=length)
+                g_loss = -mean_mask.mean(logits_fake)
+                d_weight = .5 # [TODO] skip calculate_adaptive_weight
+                disc_factor = 1 # [TODO] adopt_weight
+                loss += d_weight * disc_factor * g_loss 
             
-
-            ##### Discriminator loss
-            # [TODO] mask the shorter frames for dis loss
-            logits_real = discriminator(motions.detach(), src_mask=src_mask, length=length) # [TODO] Can we use the same logits_real from GAN loss??? 
-            logits_fake = discriminator(recon.detach(), src_mask=src_mask, length=length)
-            d_loss = disc_factor * vanilla_d_loss(logits_real, logits_fake)
-
-
             opt_ae.zero_grad()
             loss.backward()
             opt_ae.step()
             
-            opt_disc.zero_grad()
-            d_loss.backward()
-            opt_disc.step()
+            ##### Discriminator loss
+            # [TODO] mask the shorter frames for dis loss
+            d_loss = 0
+            if epoch > dis_start_epoch:
+                logits_real = discriminator(motions.detach(), src_mask=src_mask, length=length) # [TODO] Can we use the same logits_real from GAN loss??? 
+                logits_fake = discriminator(recon.detach(), src_mask=src_mask, length=length)
+                d_loss = disc_factor * vanilla_d_loss(logits_real, logits_fake)
+
+                opt_disc.zero_grad()
+                d_loss.backward()
+                opt_disc.step()
 
             unify_log.log({'rec_loss:':rec_loss, 
                            'g_loss':g_loss, 

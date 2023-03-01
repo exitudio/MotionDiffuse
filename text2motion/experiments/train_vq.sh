@@ -4,7 +4,7 @@
 # screen -S temp ~/git/MotionDiffuse/text2motion/experiments/train_vq.sh
 
 #SBATCH --job-name=job
-#SBATCH --partition=GPU
+#SBATCH --partition=Leo
 #SBATCH --gres=gpu:2
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
@@ -15,7 +15,7 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MotionDiffuse/text2motion
 conda activate motiondiffuse
-name='9_vqgan_quatize_Discriminator_CB32_mse'
+name='10_vqgan_startDis50'
 dataset_name='kit'
 debug='f'
 export CUDA_VISIBLE_DEVICES=0,1
@@ -23,7 +23,7 @@ PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
     python -u mask_model/train_vq.py \
     --batch_size 128 \
     --times 50 \
-    --num_epochs 50 \
+    --num_epochs 300 \
     --dataset_name ${dataset_name} \
     --num_layers 8 \
     --diffusion_steps 1000 \
