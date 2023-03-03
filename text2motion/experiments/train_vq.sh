@@ -15,7 +15,7 @@
 . ~/miniconda3/etc/profile.d/conda.sh
 cd ~/git/MotionDiffuse/text2motion
 conda activate motiondiffuse
-name='10_vqgan_startDis50'
+name='12_vqgan_poseformer'
 dataset_name='kit'
 debug='f'
 export CUDA_VISIBLE_DEVICES=0,1

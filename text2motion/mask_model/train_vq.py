@@ -19,7 +19,7 @@ from utils.motion_process import recover_from_ric
 from tqdm import tqdm
 
 from option import get_opt
-from motiontransformer import MotionTransformerOnly, generate_src_mask
+from motiontransformer import MotionTransformerOnly, MotionTransformerOnly2, generate_src_mask
 from mask_model.quantize import VectorQuantizer2
 from torch.utils.data import DataLoader
 from datasets import build_dataloader
@@ -36,15 +36,15 @@ if __name__ == '__main__':
 
     latent_dim = 256
     codebook_dim = 32
-    encoder = MotionTransformerOnly(input_feats=dim_pose, 
+    encoder = MotionTransformerOnly2(input_feats=dim_pose, 
                                     output_feats=codebook_dim, 
                                     latent_dim=latent_dim, 
                                     num_layers=8)
-    decoder = MotionTransformerOnly(input_feats=codebook_dim, 
+    decoder = MotionTransformerOnly2(input_feats=codebook_dim, 
                                     output_feats=dim_pose, 
                                     latent_dim=latent_dim, 
                                     num_layers=8)
-    discriminator = MotionTransformerOnly(input_feats=dim_pose, 
+    discriminator = MotionTransformerOnly2(input_feats=dim_pose, 
                                     output_feats=1, 
                                     latent_dim=latent_dim, 
                                     num_layers=4)
@@ -88,15 +88,18 @@ if __name__ == '__main__':
             B, T = motions.shape[:2]
             length = torch.LongTensor([min(T, m_len) for m_len in  m_lens]).to(opt.device)
             src_mask = generate_src_mask(T, length).to(motions.device).unsqueeze(-1)
+            B, N, _ = motions.shape
+            num_heads = 8
+            src_mask_attn = src_mask.view(B, 1, 1, N).repeat(1, num_heads, N, 1)
             mean_mask = MeanMask(src_mask, dim_pose)
 
-            z = encoder(motions, src_mask=src_mask, length=length)
+            z = encoder(motions, src_mask=src_mask_attn)
             z_q = quantize(z) * src_mask
             qloss = mean_mask.mean((z_q.detach()-z)**2 * src_mask) + 0.25 * \
                             mean_mask.mean((z_q - z.detach()) ** 2 * src_mask)
             # preserve gradients
             z_q = z + (z_q - z).detach()
-            recon = decoder(z_q, src_mask=src_mask, length=length)
+            recon = decoder(z_q, src_mask=src_mask_attn)
 
             ##### GAN loss
             # [TODO] mask the shorter frames for gan loss
@@ -108,7 +111,7 @@ if __name__ == '__main__':
             # [TODO] g_loss is negative. Probably normal??
             g_loss = 0
             if epoch > dis_start_epoch:
-                logits_fake = discriminator(recon, src_mask=src_mask, length=length)
+                logits_fake = discriminator(recon, src_mask=src_mask_attn)
                 g_loss = -mean_mask.mean(logits_fake)
                 d_weight = .5 # [TODO] skip calculate_adaptive_weight
                 disc_factor = 1 # [TODO] adopt_weight
